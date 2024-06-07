@@ -13,8 +13,10 @@ RELEASE="$(rpm -E %fedora)"
 # https://mirrors.rpmfusion.org/mirrorlist?path=free/fedora/updates/39/x86_64/repoview/index.html&protocol=https&redirect=1
 
 # this installs a package from fedora repos
-rpm-ostree install screen
-rpm-ostree uninstall just toolbox
+rpm-ostree uninstall just ublue-os-just
+rpm-ostree uninstall ublue-os-luks
+rpm-ostree uninstall ublue-os-akmods-addons
+rpm-ostree uninstall toolbox
 
 # this would install a package from rpmfusion
 # rpm-ostree install vlc
