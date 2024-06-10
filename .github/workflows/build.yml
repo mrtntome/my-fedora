@@ -105,7 +105,7 @@ jobs:
         run: |
           TAGS=(${{ steps.generate-tags.outputs.alias_tags }})
 
-          if test -d artifacts; then
+          if test ! -d artifacts; then
               mkdir -p artifacts
           fi
 
