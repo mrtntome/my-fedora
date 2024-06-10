@@ -1,5 +1,5 @@
 ---
-name: build-ublue-custom
+name: build-and-push
 on:
   pull_request:
     branches:
@@ -14,13 +14,13 @@ on:
   workflow_dispatch:
 
 env:
-  MY_IMAGE_NAME: "${{ github.event.repository.name }}"  # the name of the image produced by this build, matches repo names
-  MY_IMAGE_DESC: "My Customized Universal Blue Image"
-  IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"  # do not edit
+  MY_IMAGE_NAME: "${{ github.event.repository.name }}"
+  MY_IMAGE_DESC: "My Fedora Atomic Image"
+  IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
 
 jobs:
-  build_push:
-    name: Build and push image
+  build:
+    name: Build Image
     runs-on: ubuntu-latest
 
     permissions:
@@ -80,7 +80,6 @@ jobs:
         with:
           images: |
             ${{ env.MY_IMAGE_NAME }}
-
           labels: |
             io.artifacthub.package.readme-url=https://raw.githubusercontent.com/${{ github.repository }}/main/README.md
             org.opencontainers.image.description=${{ env.MY_IMAGE_DESC }}
@@ -101,6 +100,50 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           oci: false
 
+      - name: Save Image
+        shell: bash
+        run: |
+          TAGS=(${{ steps.generate-tags.outputs.alias_tags }})
+
+          if test -d artifacts; then
+              mkdir -p artifacts
+          fi
+
+          for TAG in "${TAGS[@]}"; do
+              podman save ${{ steps.build_image.outputs.image }}:${TAG} -o artifacts/${{ steps.build_image.outputs.image }}_${TAG}.tar
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: artifacts
+    outputs:
+      image: ${{ steps.build_image.outputs.image }}
+      tags: ${{ steps.build_image.outputs.tags }}
+  push:
+    name: Push Image
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: images
+          path: artifacts
+
+      - name: Save Image
+        shell: bash
+        run: |
+          TAGS=(${{ needs.build.outputs.tags }})
+          for TAG in "${TAGS[@]}"; do
+              podman save ${{ needs.build.outputs.image }}:${TAG} -o artifacts/${{ needs.build.outputs.image }}_${TAG}.tar
+          done
       # Workaround bug where capital letters in your GitHub username make it impossible to push to GHCR.
       # https://github.com/macbre/push-to-ghcr/issues/12
       - name: Lowercase Registry
@@ -123,27 +166,21 @@ jobs:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_PASSWORD: ${{ github.token }}
         with:
-          image: ${{ steps.build_image.outputs.image }}
-          tags: ${{ steps.build_image.outputs.tags }}
+          image: ${{ needs.build.outputs.image }}
+          tags: ${{ needs.build.outputs.tags }}
           registry: ${{ steps.registry_case.outputs.lowercase }}
           username: ${{ env.REGISTRY_USER }}
           password: ${{ env.REGISTRY_PASSWORD }}
           extra-args: |
             --disable-content-trust
 
-      # This section is optional and only needs to be enabled in you plan on distributing
-      # your project to others to consume. You will need to create a public and private key
-      # using Cosign and save the private key as a repository secret in Github for this workflow
-      # to consume. For more details, review the image signing section of the README.
-
-      # Sign container
       - uses: sigstore/cosign-installer@v3.5.0
         if: github.event_name != 'pull_request'
 
       - name: Sign container image
         if: github.event_name != 'pull_request'
         run: |
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ steps.registry_case.outputs.lowercase }}/${{ steps.build_image.outputs.image }}@${TAGS}
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ steps.registry_case.outputs.lowercase }}/${{ needs.build.outputs.image }}@${TAGS}
         env:
           TAGS: ${{ steps.push.outputs.digest }}
           COSIGN_EXPERIMENTAL: false
