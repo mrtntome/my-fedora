@@ -142,7 +142,7 @@ jobs:
         run: |
           TAGS=(${{ needs.build.outputs.tags }})
           for TAG in "${TAGS[@]}"; do
-              podman save ${{ needs.build.outputs.image }}:${TAG} -o artifacts/${{ needs.build.outputs.image }}_${TAG}.tar
+              podman load -i artifacts/${{ needs.build.outputs.image }}_${TAG}.tar
           done
       # Workaround bug where capital letters in your GitHub username make it impossible to push to GHCR.
       # https://github.com/macbre/push-to-ghcr/issues/12
