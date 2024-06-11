@@ -92,7 +92,7 @@ jobs:
             ${{ steps.generate-tags.outputs.alias_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           oci: false
-      - name: Save Image
+      - name: Save Images
         shell: bash
         run: |
           TAGS=(${{ steps.generate-tags.outputs.alias_tags }})
@@ -102,7 +102,7 @@ jobs:
           fi
 
           for TAG in "${TAGS[@]}"; do
-              podman save ${{ steps.build_image.outputs.image }}:${TAG} -o artifacts/${{ steps.build_image.outputs.image }}_${TAG}.tar
+              podman save --format=oci-archive ${{ steps.build_image.outputs.image }}:${TAG} -o artifacts/${{ steps.build_image.outputs.image }}_${TAG}.tar
           done
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -113,7 +113,7 @@ jobs:
       image: ${{ steps.build_image.outputs.image }}
       tags: ${{ steps.build_image.outputs.tags }}
   push:
-    name: Push Image
+    name: Push Images
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -126,7 +126,7 @@ jobs:
         with:
           name: images
           path: artifacts
-      - name: Save Image
+      - name: Load Images
         shell: bash
         run: |
           TAGS=(${{ needs.build.outputs.tags }})
